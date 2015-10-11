@@ -6,22 +6,14 @@ import robotexclusionrulesparser as rerp
 from urlparse import urlparse, urljoin
 
 max_len = 10000
-max_depth = 6
+max_depth = 3
 max_cache_len = 1000
 urls_scale = ['m.byr.cn']
 seeds = ['http://m.byr.cn/section']
 to_crawl = []
 crawled = set()
-cache = {'page':{}, 'list':[]}
 robots_cache = {}
 limit_connect_time = 1
-
-def join_cache(cache, url, page):
-    if len(cache) > max_cache_len:
-        del_cache_url = cache['list'].pop(0)
-        del cache['page'][del_cache_url]
-    cache['page'][url] = page
-    cache['list'].append(url)
 
 def is_in_scale(url):
     parsed_url = urlparse(url)
@@ -37,6 +29,7 @@ def robots_pass(url, robots_cache):
         base = page_url[0] + '://' + page_url[1]
         robots_url = base + '/robots.txt'
         rp = rerp.RobotExclusionRulesParser()
+        rp.user_agent = 'byr'
         try:
             rp.fetch(robots_url)
             robots_cache[page_url[1]] = rp
@@ -46,15 +39,12 @@ def robots_pass(url, robots_cache):
 
 
 def get_page(url):
-    if url in cache['page']:
-        return cache['page'][url]
-    else:
-        try:
-            r = requests.get(url, timeout=limit_connect_time)
-            return r.text
-        except:
-            print 'get page content error, url:%s' % url
-            return None
+    try:
+        r = requests.get(url, timeout=limit_connect_time)
+        return r.text
+    except:
+        print 'get page content error, url:%s' % url
+        return None
 
 def insert_db(url, page):
     print url
@@ -78,12 +68,15 @@ def get_page_links(page, url):
             page_links.append(urljoin(base, link))
     return page_links
 
-def add_to_crawl(to_crawl, page_links, depth):
+def add_to_crawl(to_crawl, page_links, depth, robots_cache):
     for link in page_links:
         if not is_in_scale(link):
             continue
-        if not robots_pass(url, cache):
-            print "robots limit: %s" % url
+        if not robots_pass(link, robots_cache):
+            try:
+                print "robots limit: %s" % link
+            except:
+                print "robots limit: %s" % link.encode('utf-8')
             continue
         if link in crawled:
             continue
@@ -105,6 +98,5 @@ while len(to_crawl) > 0:
     if page is None:
         continue
     insert_db(url, page)
-    join_cache(cache, page,url)
     page_links = get_page_links(page, url)
-    add_to_crawl(to_crawl, page_links, depth)
+    add_to_crawl(to_crawl, page_links, depth, robots_cache)
