@@ -1,22 +1,22 @@
-import struct
+import cPickle as pickle
 
 class CommonHelper:
     def __init__(self, _fmt='i'):
         self.fmt = _fmt
 
-    def pack(self, s):
-        return struct.pack(self.fmt, len(s)) + s
+    def pack(self, _dict):
+        # _dict: {'s':0,'d':['a','b']}
+        return pickle.dumps(_dict, -1)  
 
     def unpack(self, s):
-        size = struct.calcsize(self.fmt)
         try:
-            temp = struct.unpack(self.fmt, s[:size])
-            data = s[size:]
+            ele = pickle.loads(s)
+            tag = ele.get('s', -1)
         except:
-            tag, data = -1, ''
-        else:
-            tag = temp[0] if len(temp) > 0 else 0
-        return tag, data
+            tag, ele = -1, {}
+        counter = ele.get('c', 0)
+        data = ele.get('d', [])
+        return tag, data, counter
 
     def get_url(self):
-        return self.pack('')
+        return self.pack({'s':0, 'd':[]})

@@ -13,6 +13,8 @@ from helper import CommonHelper
 HOST = '127.0.0.1'
 PORT = 5000
 RECV_BUFFER = 1024
+TAG_GET = 0
+TAG_PUT = 1
 #create a socket
 server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 server.setblocking(0)
@@ -27,7 +29,7 @@ outputs = []
 #Outgoing message queues
 message_queues = Queue.Queue()
 #A optional parameter for select is TIMEOUT
-timeout = 20
+timeout = 60
 helper = CommonHelper()
 
 while inputs:
@@ -42,15 +44,18 @@ while inputs:
             inputs.append(connection)
         else:
             data = s.recv(RECV_BUFFER)
-            if data :
-                tag, data = helper.unpack(data)
-                if tag == 0:
+            if data:
+                tag, data, counter = helper.unpack(data)
+                print tag
+                if tag == TAG_GET:
                 # Add output channel for response
-                    if s not in outputs:
+                    print " received asking"
+                    if s not in outputs :
                         outputs.append(s)
-                elif tag > 0:
-                    print " received " , data , "from ",s.getpeername()
-                    message_queues.put(data)
+                elif tag == TAG_PUT:
+                    print " received " , data , " ver", counter, "from ",s.getpeername()
+                    for ele in data:
+                        message_queues.put(ele)
                 # time.sleep(0.2)
             else:
                 #Interpret empty result as closed connection
@@ -64,11 +69,11 @@ while inputs:
             next_msg = message_queues.get_nowait()
         except Queue.Empty:
             print " " , s.getpeername() , 'queue empty'
-            outputs.remove(s)
+            s.send('wait')
         else:
             print " sending " , next_msg , " to ", s.getpeername()
             s.send(next_msg)
-            outputs.remove(s)
+        outputs.remove(s)
     for s in exceptional:
         print " exception condition on ", s.getpeername()
         #stop listening for input on the connection
