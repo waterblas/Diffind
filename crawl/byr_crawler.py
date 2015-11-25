@@ -23,7 +23,7 @@ class Crawler:
     def _in_scale(self, url):
         parsed_url = urlparse(url)
         if parsed_url[1] in self.scale:
-	    return True
+	       return True
         return False
 
     def _robots_pass(self, url):
@@ -57,12 +57,12 @@ class Crawler:
         base = '://'.join(urlparse(url)[0:2])
         a_tags = BeautifulSoup(page).find_all('a')
         for tag in a_tags:
-	    link = tag.get('href')
+            link = tag.get('href')
             if link is None:
                 continue
             parser = urlparse(link)
             # 忽略网页的锚的href
-	    if parser[5] and not parser[2]:
+            if parser[5] and not parser[2]:
                 continue
             elif parser[1]:
                 page_links.append(link)
