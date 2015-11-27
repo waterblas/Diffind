@@ -46,18 +46,17 @@ while inputs:
         else:
             data = s.recv(RECV_BUFFER)
             if data:
-                tag, data, counter = helper.unpack(data)
+                tag, data, depth = helper.server_unpack(data)
                 if tag == TAG_GET:
                 # Add output channel for response
-                    print " received asking"
+                    # print " received a request for url"
                     if s not in outputs :
                         outputs.append(s)
                 elif tag == TAG_PUT:
-                    print " received " , data , " ver", counter, "from ",s.getpeername()
+                    print " received " , data , "from ",s.getpeername()
                     for ele in data:
-                        message_queues.put(ele)
+                        message_queues.put([ele,depth])
                     s.send('done')
-                # time.sleep(0.2)
             else:
                 #Interpret empty result as closed connection
                 print "  closing", client_address
@@ -73,7 +72,7 @@ while inputs:
             s.send('wait')
         else:
             print " sending " , next_msg , " to ", s.getpeername()
-            s.send(next_msg)
+            s.send(helper.pack(next_msg))
         outputs.remove(s)
     for s in exceptional:
         print " exception condition on ", s.getpeername()

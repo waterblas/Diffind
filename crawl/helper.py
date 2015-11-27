@@ -4,19 +4,28 @@ class CommonHelper:
     def __init__(self, _fmt='i'):
         self.fmt = _fmt
 
-    def pack(self, _dict):
-        # _dict: {'s':0,'d':['a','b']}
-        return pickle.dumps(_dict, -1)  
+    def pack(self, _d):
+        # _dict: {'s':0,'u':['a','b'], 'd':1}
+        # _list: [url, depth]
+        return pickle.dumps(_d, -1)  
 
-    def unpack(self, s):
+    def server_unpack(self, s):
         try:
             ele = pickle.loads(s)
             tag = ele.get('s', -1)
         except:
             tag, ele = -1, {}
-        counter = ele.get('c', 0)
-        data = ele.get('d', [])
-        return tag, data, counter
+        depth = ele.get('d', 0)
+        data = ele.get('u', [])
+        return tag, data, depth
+
+    def client_unpack(self, s):
+        try:
+            url, depth = pickle.loads(s)
+        except:
+            url, depth = '', 0
+            print 'client unpack error:' + s
+        return url, depth
 
     def get_url(self):
-        return self.pack({'s':0, 'd':[]})
+        return self.pack({'s':0, 'u':[], 'd':0})

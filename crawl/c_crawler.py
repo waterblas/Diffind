@@ -16,6 +16,7 @@ from helper import CommonHelper
 
 
 class UrlFilter:
+    '''BloomFilter: check elements repetition'''
     def __init__(self, _capacity=50000, _error_rate=0.01):
         self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
 
@@ -30,6 +31,7 @@ class UrlFilter:
                 res.append(ele)
         return res
 
+
 HOST = '127.0.0.1'
 PORT = 5000
 RECV_BUFFER = 1024
@@ -40,11 +42,10 @@ Bfilter = UrlFilter()
 
 class Crawler(threading.Thread):
     '''crawl post data in m.byr.cn site'''
-    def __init__(self, _scale, _connect_time=5, _host=HOST, _port=PORT, _max_depth=3):
+    def __init__(self, _scale, _connect_time=5, _host=HOST, _port=PORT, _max_depth=999):
         threading.Thread.__init__(self)
         self.scale = _scale
         self.connect_time = _connect_time
-        self.counter = 0
         self.robots_cache = {}
         self.client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.client.connect((_host, _port))
@@ -75,6 +76,7 @@ class Crawler(threading.Thread):
         return rp.is_allowed('*', url)
 
     def _get_page(self, url):
+        '''get the web page content based on url'''
         try:
             r = requests.get(url, timeout=self.connect_time)
             return r.text
@@ -83,8 +85,9 @@ class Crawler(threading.Thread):
             return None
 
     def _get_page_links(self, page, url, depth):
+        '''get urls in the web page'''
         page_links = []
-        if depth >= self.max_depth:
+        if depth > self.max_depth:
             return page_links
         base = '://'.join(urlparse(url)[0:2])
         a_tags = BeautifulSoup(page).find_all('a')
@@ -102,11 +105,12 @@ class Crawler(threading.Thread):
                 page_links.append(urljoin(base, link))
         return page_links
 
-    def enqueue(self, links):
-        self.counter += 1
-        print "  %s sending %s" % (self.client.getpeername(),'|'.join(links)+" ver "+str(self.counter))
-        data = {'s':1, 'd':links, 'c':self.counter}
-        # 模拟二次握手
+    def enqueue(self, links, depth):
+        '''put urls into server queue'''
+        time.sleep(0.5)
+        print " %s sending %s" % (self.client.getpeername() , '|'.join(links))
+        data = {'s':1, 'u':links, 'd': depth}
+        # 二次握手
         while True:
             self.client.send(helper.pack(data))
             try:
@@ -118,6 +122,7 @@ class Crawler(threading.Thread):
                     break
         
     def dequeue(self):
+        '''get the url waiting for crawling from server'''
         time.sleep(0.5)
         # 二次握手
         num = 0
@@ -136,20 +141,21 @@ class Crawler(threading.Thread):
             self.client.close()
         elif data == 'wait':
             time.sleep(2)
-        else:
-            print " %s received %s" % (self.client.getpeername(),data)
-        return data
+        url, depth = helper.client_unpack(data)
+        print " %s received %s" % (self.client.getpeername(),url)
+        return url, depth
 
     def run(self):
         while True:
-            url = self.dequeue()
+            url, depth = self.dequeue()
             if not self._in_scale(url):
                 continue
             page = self._get_page(url)
             Bfilter.add([url])
             if page is None:
                 continue
-            page_links = Bfilter.check(self._get_page_links(page, url, 1))
+            # ignore url beyond assigned depth
+            page_links = Bfilter.check(self._get_page_links(page, url, depth))
             # limit send buffer to server receive buffer
             end = -1
             while True:
@@ -158,9 +164,9 @@ class Crawler(threading.Thread):
                     end -= 2
                 else:
                     break
-            Bfilter.add(page_links)
             if len(page_links) > 0:
-                self.enqueue(page_links)
+                Bfilter.add(page_links)
+                self.enqueue(page_links, depth+1)
 
 if __name__ == '__main__':
     urls_scale = ['m.byr.cn']
@@ -168,7 +174,7 @@ if __name__ == '__main__':
     Bfilter.add(seeds)
     pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     pre_client.connect((HOST, PORT))
-    pre_client.send(helper.pack({'s':1, 'd':seeds, 'c':0}))
+    pre_client.send(helper.pack({'s':1, 'u':seeds, 'd':0}))
     pre_client.close()
     for i in range(3):
         time.sleep(0.5)
