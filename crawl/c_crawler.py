@@ -60,6 +60,7 @@ class Crawler(threading.Thread):
         return False
 
     def _robots_pass(self, url):
+        ''' keep on Robots Exclusion Protocol '''
         page_url = urlparse(url)
         if page_url[1] in self.robots_cache:
             rp = self.robots_cache[page_url[1]]
@@ -67,7 +68,7 @@ class Crawler(threading.Thread):
             base = page_url[0] + '://' + page_url[1]
             robots_url = base + '/robots.txt'
             rp = rerp.RobotExclusionRulesParser()
-            rp.user_agent = 'byr'
+            # rp.user_agent = 'byr'
             try:
                 rp.fetch(robots_url)
                 self.robots_cache[page_url[1]] = rp
@@ -99,10 +100,10 @@ class Crawler(threading.Thread):
             # 忽略网页的锚的href
             if parser[5] and not parser[2]:
                 continue
-            elif parser[1]:
+            elif not parser[1]:
+                link = urljoin(base, link)
+            if self._robots_pass(link):
                 page_links.append(link)
-            else:
-                page_links.append(urljoin(base, link))
         return page_links
 
     def enqueue(self, links, depth):
@@ -179,7 +180,6 @@ if __name__ == '__main__':
     for i in range(3):
         time.sleep(0.5)
         t = Crawler(urls_scale)
-        # t.setDaemon(True)
         t.start()
 
 
