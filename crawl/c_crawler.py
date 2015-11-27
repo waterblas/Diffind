@@ -4,7 +4,7 @@ Created on 2015-11-20
 The client program uses some sockets to put urls and get url from queue server
 @author: ldy
 '''
-
+import sys
 import socket
 import time, threading
 import requests
@@ -19,8 +19,9 @@ class UrlFilter:
     def __init__(self, _capacity=50000, _error_rate=0.01):
         self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
 
-    def add(self, ele):
-        self.filter.add(ele)
+    def add(self, links):
+        for ele in links:
+            self.filter.add(ele)
 
     def check(self, links):
         res = []
@@ -32,6 +33,8 @@ class UrlFilter:
 HOST = '127.0.0.1'
 PORT = 5000
 RECV_BUFFER = 1024
+SERVER_BUFFER = 4096
+MAX_LINK_TIME = 256
 helper = CommonHelper()
 Bfilter = UrlFilter()
 
@@ -46,7 +49,7 @@ class Crawler(threading.Thread):
         self.client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.client.connect((_host, _port))
         # revc throw exception beyond 2 s
-        self.client.settimeout(1)
+        self.client.settimeout(2)
         self.max_depth = _max_depth
 
     def _in_scale(self, url):
@@ -103,27 +106,39 @@ class Crawler(threading.Thread):
         self.counter += 1
         print "  %s sending %s" % (self.client.getpeername(),'|'.join(links)+" ver "+str(self.counter))
         data = {'s':1, 'd':links, 'c':self.counter}
-        self.client.send(helper.pack(data))
-
-
-    def dequeue(self):
-            # 模拟二次握手
-            while True:
-                self.client.send(helper.get_url())
-                try:
-                    data = self.client.recv(RECV_BUFFER)
-                except:
-                    time.sleep(0.5)
-                else:
-                    break
-            if data == 'wait':
-                time.sleep(2)
+        # 模拟二次握手
+        while True:
+            self.client.send(helper.pack(data))
+            try:
+                message = self.client.recv(RECV_BUFFER)
+            except:
+                time.sleep(0.5)
             else:
-                print " %s received %s" % (self.client.getpeername(),data)
-            if not data:
-                print "closing socket ",self.client.getpeername()
-                self.client.close()
-            return data
+                if message == 'done':
+                    break
+        
+    def dequeue(self):
+        time.sleep(0.5)
+        # 二次握手
+        num = 0
+        while True:
+            if num > MAX_LINK_TIME:
+                break
+            self.client.send(helper.get_url())
+            try:
+                data = self.client.recv(RECV_BUFFER)
+            except:
+                num += 1
+            else:
+                break
+        if not data:
+            print "closing socket ",self.client.getpeername()
+            self.client.close()
+        elif data == 'wait':
+            time.sleep(2)
+        else:
+            print " %s received %s" % (self.client.getpeername(),data)
+        return data
 
     def run(self):
         while True:
@@ -131,10 +146,19 @@ class Crawler(threading.Thread):
             if not self._in_scale(url):
                 continue
             page = self._get_page(url)
-            Bfilter.add(url)
+            Bfilter.add([url])
             if page is None:
                 continue
             page_links = Bfilter.check(self._get_page_links(page, url, 1))
+            # limit send buffer to server receive buffer
+            end = -1
+            while True:
+                if sys.getsizeof(page_links) > SERVER_BUFFER * 0.9:
+                    page_links = page_links[:end]
+                    end -= 2
+                else:
+                    break
+            Bfilter.add(page_links)
             if len(page_links) > 0:
                 self.enqueue(page_links)
 
@@ -146,12 +170,11 @@ if __name__ == '__main__':
     pre_client.connect((HOST, PORT))
     pre_client.send(helper.pack({'s':1, 'd':seeds, 'c':0}))
     pre_client.close()
-    
-    t = Crawler(urls_scale)
-    # t.setDaemon(True)
-    t.start()
-    # t.join()
-
+    for i in range(3):
+        time.sleep(0.5)
+        t = Crawler(urls_scale)
+        # t.setDaemon(True)
+        t.start()
 
 
 

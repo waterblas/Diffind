@@ -12,7 +12,8 @@ from helper import CommonHelper
 
 HOST = '127.0.0.1'
 PORT = 5000
-RECV_BUFFER = 1024
+# transfer close beyond limit
+RECV_BUFFER = 4096
 TAG_GET = 0
 TAG_PUT = 1
 #create a socket
@@ -46,7 +47,6 @@ while inputs:
             data = s.recv(RECV_BUFFER)
             if data:
                 tag, data, counter = helper.unpack(data)
-                print tag
                 if tag == TAG_GET:
                 # Add output channel for response
                     print " received asking"
@@ -56,6 +56,7 @@ while inputs:
                     print " received " , data , " ver", counter, "from ",s.getpeername()
                     for ele in data:
                         message_queues.put(ele)
+                    s.send('done')
                 # time.sleep(0.2)
             else:
                 #Interpret empty result as closed connection
