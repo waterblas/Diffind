@@ -8,11 +8,13 @@ import sys
 import socket
 import time, threading
 import requests
+import Queue
 from bs4 import BeautifulSoup
 import robotexclusionrulesparser as rerp
 from urlparse import urlparse, urljoin
 from pybloom import BloomFilter
 from helper import CommonHelper
+from mongo_helper import MongoHelper
 
 
 class UrlFilter:
@@ -32,17 +34,24 @@ class UrlFilter:
         return res
 
 
+# config
 HOST = '127.0.0.1'
 PORT = 5000
 RECV_BUFFER = 1024
 SERVER_BUFFER = 4096
 MAX_LINK_TIME = 256
+PAGE_CACHE_SIZE = 5
+MONGO_HOST = '192.168.99.100'
+MONGO_PORT = '32771'
+
 helper = CommonHelper()
+mongo_helper = MongoHelper(MONGO_HOST, MONGO_PORT)
 Bfilter = UrlFilter()
 
 class Crawler(threading.Thread):
     '''crawl post data in m.byr.cn site'''
-    def __init__(self, _scale, _connect_time=5, _host=HOST, _port=PORT, _max_depth=999):
+    def __init__(self, _scale, _connect_time=5, _host=HOST, _port=PORT,
+                 _max_depth=999, _page_cache_size=PAGE_CACHE_SIZE):
         threading.Thread.__init__(self)
         self.scale = _scale
         self.connect_time = _connect_time
@@ -52,6 +61,7 @@ class Crawler(threading.Thread):
         # revc throw exception beyond 2 s
         self.client.settimeout(2)
         self.max_depth = _max_depth
+        self.page_cache = Queue.Queue(_page_cache_size)
 
     def _in_scale(self, url):
         parsed_url = urlparse(url)
@@ -121,10 +131,9 @@ class Crawler(threading.Thread):
             else:
                 if message == 'done':
                     break
-        
+
     def dequeue(self):
         '''get the url waiting for crawling from server'''
-        time.sleep(0.5)
         # 二次握手
         num = 0
         while True:
@@ -155,6 +164,15 @@ class Crawler(threading.Thread):
             Bfilter.add([url])
             if page is None:
                 continue
+            # dealt with crawled data
+            if self.page_cache.full():
+                coll = {}
+                while not self.page_cache.empty():
+                    coll.update(self.page_cache.get())
+                # insert 5 pages into data one time
+                mongo_helper.insert_many(coll)
+                time.sleep(1)
+            self.page_cache.put({url: page})
             # ignore url beyond assigned depth
             page_links = Bfilter.check(self._get_page_links(page, url, depth))
             # limit send buffer to server receive buffer
@@ -178,9 +196,9 @@ if __name__ == '__main__':
     pre_client.send(helper.pack({'s':1, 'u':seeds, 'd':0}))
     pre_client.close()
     for i in range(3):
-        time.sleep(0.5)
         t = Crawler(urls_scale)
         t.start()
+        time.sleep(3)
 
 
 
