@@ -13,14 +13,31 @@ from bs4 import BeautifulSoup
 import robotexclusionrulesparser as rerp
 from urlparse import urlparse, urljoin
 from pybloom import BloomFilter
-from helper import CommonHelper
+from helper import CommonHelper, TimeBomb
 from mongo_helper import MongoHelper
+
+
+# config
+HOST = '127.0.0.1'
+PORT = 5000
+RECV_BUFFER = 1024
+SERVER_BUFFER = 4096
+MAX_LINK_TIME = 256
+PAGE_CACHE_SIZE = 5
+MONGO_HOST = '192.168.99.100'
+MONGO_PORT = '32771'
+TMP_DIR = './tmp/'
+BLOOM_FILE = 'bloom.pkl'
 
 
 class UrlFilter:
     '''BloomFilter: check elements repetition'''
     def __init__(self, _capacity=50000, _error_rate=0.01):
-        self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
+        self.bomb = TimeBomb(TMP_DIR + BLOOM_FILE)
+        self.filter = self.bomb.load()
+        if self.filter is None:
+            self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
+        self.bomb.dump(self.filter)
 
     def add(self, links):
         for ele in links:
@@ -33,16 +50,6 @@ class UrlFilter:
                 res.append(ele)
         return res
 
-
-# config
-HOST = '127.0.0.1'
-PORT = 5000
-RECV_BUFFER = 1024
-SERVER_BUFFER = 4096
-MAX_LINK_TIME = 256
-PAGE_CACHE_SIZE = 5
-MONGO_HOST = '192.168.99.100'
-MONGO_PORT = '32771'
 
 helper = CommonHelper()
 mongo_helper = MongoHelper(MONGO_HOST, MONGO_PORT)
@@ -84,6 +91,7 @@ class Crawler(threading.Thread):
                 self.robots_cache[page_url[1]] = rp
             except:
                 print 'robots read error: %s' % robots_url
+                return True
         return rp.is_allowed('*', url)
 
     def _get_page(self, url):
@@ -119,7 +127,7 @@ class Crawler(threading.Thread):
     def enqueue(self, links, depth):
         '''put urls into server queue'''
         time.sleep(0.5)
-        print " %s sending %s" % (self.client.getpeername() , '|'.join(links))
+        # print " %s sending %s" % (self.client.getpeername() , '|'.join(links))
         data = {'s':1, 'u':links, 'd': depth}
         # 二次握手
         while True:
@@ -157,7 +165,11 @@ class Crawler(threading.Thread):
 
     def run(self):
         while True:
-            url, depth = self.dequeue()
+            try:
+                url, depth = self.dequeue()
+            except:
+                Bfilter.bomb.stop()
+                break
             if not self._in_scale(url):
                 continue
             page = self._get_page(url)
@@ -171,7 +183,7 @@ class Crawler(threading.Thread):
                     coll.update(self.page_cache.get())
                 # insert 5 pages into data one time
                 mongo_helper.insert_many(coll)
-                time.sleep(1)
+                time.sleep(1.5)
             self.page_cache.put({url: page})
             # ignore url beyond assigned depth
             page_links = Bfilter.check(self._get_page_links(page, url, depth))
