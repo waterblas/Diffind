@@ -1,16 +1,5 @@
 #!/usr/bin/env python
-# ----------------------------------------------------------------------------
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-# ----------------------------------------------------------------------------
-# Author: Matteo Bertozzi <theo.bertozzi@gmail.com>
-# Site: http://th30z.blogspot.com
-# ----------------------------------------------------------------------------
+# coding=utf8
 
 import unicodedata
 
@@ -65,19 +54,20 @@ def word_split(text):
     word_list = []
     wcurrent = []
     windex = None
-
+    term_index = 1
     for i, c in enumerate(text):
         if c.isalnum():
             wcurrent.append(c)
             windex = i
         elif wcurrent:
             word = u''.join(wcurrent)
-            word_list.append((windex - len(word) + 1, word))
+            word_list.append((term_index, word))
             wcurrent = []
+            term_index += 1
 
     if wcurrent:
         word = u''.join(wcurrent)
-        word_list.append((windex - len(word) + 1, word))
+        word_list.append((term_index, word))
 
     return word_list
 
@@ -146,16 +136,112 @@ def search(inverted, query):
     results = [set(inverted[word].keys()) for word in words]
     return reduce(lambda x, y: x & y, results) if results else []
 
+
+def two_extract(words, inverted):
+    '''
+        将query切分成二词短语，返回二词短语的集合和相应的stop words的位置信息：
+        [['document', 'id', offset], ...]
+    '''
+    for i in range(len(words)):
+        if words[i] not in inverted:
+            del words[0]
+        else:
+            break
+    two_term = []
+    temp = []
+    offset = 0
+    for i in range(len(words)):
+        if words[i] not in inverted:
+            offset += 1
+            continue
+        else:
+            temp.append(words[i])
+        if len(temp) == 2:
+            two_term.append(temp + [offset])
+            offset = 0
+            temp = temp[1:]
+    return two_term
+
+def term_search(inverted, query):
+    '''
+        短语查询：返回符合的短语位置关系的结果
+    '''
+    all_words = [word for _, word in words_normalize(word_split(query))]
+    words = [word for word in all_words if word in inverted]
+    results = [set(inverted[word].keys()) for word in words]
+    mixed = reduce(lambda x, y: x & y, results) if results else []
+    if len(mixed) == 0 or len(words) == 0:
+        return None
+    if len(words) < 2:
+        return inverted[words[0]]
+    two_terms = two_extract(all_words, inverted)
+    term_2 = two_terms.pop()
+    return two_term_find(inverted, term_2[0], term_2[1], mixed, term_2[2])
+
+def two_term_find(inverted, word_1, word_2, mixed, diff=0):
+    '''
+        查找索引中满足短语位置关系的指定单个二词短语位置：
+        {'doc1': [3,9], 'doc2': [2, 15]}
+    '''
+    index_1 = inverted[word_1]
+    index_2 = inverted[word_2]
+    res = {}
+    for doc in mixed:
+        fix = []
+        i, j = 0, 0
+        while i < len(index_1[doc]) and j < len(index_2[doc]):
+            if index_1[doc][i] == index_2[doc][j] - diff - 1:
+                fix.append(index_1[doc][i])
+                i += 1
+                j += 1
+            elif index_1[doc][i] > index_2[doc][j] - diff - 1:
+                j += 1
+            else:
+                i += 1
+        if i < len(index_1[doc]):
+            while i < len(index_1[doc]):
+                if index_1[doc][i] == index_2[doc][j-1] - diff - 1:
+                    fix.append(index_1[doc][i])
+                    i += 1
+                    break
+                elif index_1[doc][i] > index_2[doc][j-1] - diff - 1:
+                    break
+                else:
+                    i += 1
+        elif j < len(index_2[doc]):
+            while j < len(index_2[doc]):
+                if index_1[doc][i-1] == index_2[doc][j] - diff - 1:
+                    fix.append(index_1[doc][i-1])
+                    break
+                elif index_1[doc][i-1] < index_2[doc][j] - diff -1:
+                    break
+                else:
+                    j += 1
+        if len(fix) > 0:
+            res[doc] = fix
+    if len(res) < 1:
+        res = None
+    return res
+
+def show_terms(doc_loc, documents, term_len = 6):
+    for doc in doc_loc:
+        print '@@@@@doc: %s' % doc
+        for loc in doc_loc[doc]:
+            s = (term_len / 3) * loc
+            e = term_len * loc  + 20
+            print documents[doc][s: e]
+
+
 if __name__ == '__main__':
     doc1 = """
-Niners head coach Mike Singletary will let Alex Smith remain his starting
+Niners head West coach Mike Singletary will let Alex Smith remain his starting
 quarterback, but his vote of confidence is anything but a long-term mandate.
 
-Smith now will work on a week-to-week basis, because Singletary has voided
-his year-long lease on the job.
+Smith now will work on fifth a week-to-week basis, because Singletary has voided
+his year-long lease on the job. edition
 
 "I think from this point on, you have to do what's best for the football team,"
-Singletary said Monday, one day after threatening to bench Smith during a
+Singletary said Monday, one day Coast after threatening to bench Smith during a
 27-24 loss to the visiting Eagles.
 """
 
@@ -177,22 +263,27 @@ produce no carbon emissions.
         doc_index = inverted_index(text)
         inverted_index_add(inverted, doc_id, doc_index)
 
-    # Print Inverted-Index
-    for word, doc_locations in inverted.iteritems():
-        print word, doc_locations
+    # # Print Inverted-Index
+    # for word, doc_locations in inverted.iteritems():
+    #     print word, doc_locations
 
-    # Search something and print results
-    queries = ['Week', 'Niners week', 'West-coast Week']
-    for query in queries:
-        result_docs = search(inverted, query)
-        print "Search for '%s': %r" % (query, result_docs)
-        for _, word in word_index(query):
-            def extract_text(doc, index):
-                return documents[doc][index:index+20].replace('\n', ' ')
 
-            for doc in result_docs:
-                for index in inverted[word][doc]:
-                    print '   - %s...' % extract_text(doc, index)
-        print
+    query = 'fifth edition'
+    doc_loc = term_search(inverted, query)
+    show_terms(doc_loc, documents)
+
+    # # Search something and print results
+    # queries = ['Week', 'Niners week', 'West-coast Week']
+    # for query in queries:
+    #     result_docs = search(inverted, query)
+    #     print "Search for '%s': %r" % (query, result_docs)
+    #     for _, word in word_index(query):
+    #         def extract_text(doc, index):
+    #             return documents[doc][index:index+20].replace('\n', ' ')
+
+    #         for doc in result_docs:
+    #             for index in inverted[word][doc]:
+    #                 print '   - %s...' % extract_text(doc, index)
+    #     print
 
 
