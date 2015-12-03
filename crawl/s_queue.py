@@ -8,7 +8,7 @@ TCP/IP socket and configuring it to listen on an address
 import select
 import socket
 import Queue
-from helper import CommonHelper
+from helper import CommonHelper, TimeBomb
 
 HOST = '127.0.0.1'
 PORT = 5000
@@ -16,6 +16,8 @@ PORT = 5000
 RECV_BUFFER = 4096
 TAG_GET = 0
 TAG_PUT = 1
+TMP_DIR = './tmp/'
+QUEUE_FILE = 'queue.pkl'
 #create a socket
 server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 server.setblocking(0)
@@ -28,12 +30,17 @@ inputs = [server]
 #sockets from which we expect to write
 outputs = []
 #Outgoing message queues
-message_queues = Queue.Queue()
+bomb = TimeBomb(TMP_DIR + QUEUE_FILE, True)
+message_queues = bomb.q_load()
+bomb.q_dump(message_queues)
 #A optional parameter for select is TIMEOUT
 timeout = 60
 helper = CommonHelper()
 
+
 while inputs:
+    if not bomb.is_sleep:
+        time.sleep(10)
     print "waiting for next event"
     readable , writable , exceptional = select.select(inputs, outputs, inputs, timeout)
     for s in readable :

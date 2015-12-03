@@ -25,14 +25,14 @@ SERVER_BUFFER = 4096
 MAX_LINK_TIME = 256
 PAGE_CACHE_SIZE = 5
 MONGO_HOST = '192.168.99.100'
-MONGO_PORT = '32771'
+MONGO_PORT = '32773'
 TMP_DIR = './tmp/'
 BLOOM_FILE = 'bloom.pkl'
 
 
 class UrlFilter:
     '''BloomFilter: check elements repetition'''
-    def __init__(self, _capacity=50000, _error_rate=0.01):
+    def __init__(self, _capacity=100000, _error_rate=0.01):
         self.bomb = TimeBomb(TMP_DIR + BLOOM_FILE)
         self.filter = self.bomb.load()
         if self.filter is None:
@@ -130,12 +130,16 @@ class Crawler(threading.Thread):
         # print " %s sending %s" % (self.client.getpeername() , '|'.join(links))
         data = {'s':1, 'u':links, 'd': depth}
         # 二次握手
+        num = 0
         while True:
+            if num > MAX_LINK_TIME:
+                break
             self.client.send(helper.pack(data))
             try:
                 message = self.client.recv(RECV_BUFFER)
             except:
                 time.sleep(0.5)
+                num += 1
             else:
                 if message == 'done':
                     break
@@ -165,11 +169,7 @@ class Crawler(threading.Thread):
 
     def run(self):
         while True:
-            try:
-                url, depth = self.dequeue()
-            except:
-                Bfilter.bomb.stop()
-                break
+            url, depth = self.dequeue()
             if not self._in_scale(url):
                 continue
             page = self._get_page(url)
@@ -199,18 +199,27 @@ class Crawler(threading.Thread):
                 Bfilter.add(page_links)
                 self.enqueue(page_links, depth+1)
 
-if __name__ == '__main__':
-    urls_scale = ['m.byr.cn']
+
+def _recover():
     seeds = ['http://m.byr.cn/section']
     Bfilter.add(seeds)
     pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     pre_client.connect((HOST, PORT))
     pre_client.send(helper.pack({'s':1, 'u':seeds, 'd':0}))
     pre_client.close()
+
+if __name__ == '__main__':
+    urls_scale = ['m.byr.cn']
+    _recover()
     for i in range(3):
         t = Crawler(urls_scale)
+        t.setDaemon(True)
         t.start()
         time.sleep(3)
+    while t.isAlive():
+        time.sleep(10)
+    Bfilter.bomb.stop()
+    print 'stop bomb threading'
 
 
 
