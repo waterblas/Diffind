@@ -14,7 +14,7 @@ import robotexclusionrulesparser as rerp
 from urlparse import urlparse, urljoin
 from pybloom import BloomFilter
 from helper import CommonHelper, TimeBomb
-from mongo_helper import MongoHelper
+from db_con import MongoHelper
 
 
 # config
