@@ -9,32 +9,38 @@ import select
 import socket
 import Queue
 from helper import CommonHelper, TimeBomb
+from config import Config
 
-HOST = '127.0.0.1'
-PORT = 5000
-# transfer close beyond limit
-RECV_BUFFER = 4096
+# config
+default_config = {
+    "HOST":         "127.0.0.1",
+    "PORT":         5000,
+    "RECV_BUFFER":  4096,     # transfer close: beyond limit
+    "TMP_DIR":      "./tmp/",
+    "QUEUE_FILE":   "queue.pkl",
+    "TIME_OUT":      60           # a option: parameter for select is TIMEOUT
+}
+CONFIG = Config('./', default_config)
+CONFIG.from_json('server.json')
+
+
 TAG_GET = 0
 TAG_PUT = 1
-TMP_DIR = './tmp/'
-QUEUE_FILE = 'queue.pkl'
 #create a socket
 server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 server.setblocking(0)
 #set option reused
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR  , 1)
-server.bind((HOST, PORT))
+server.bind((CONFIG['HOST'], CONFIG['PORT']))
 server.listen(10)
 #sockets from which we except to read
 inputs = [server]
 #sockets from which we expect to write
 outputs = []
 #Outgoing message queues
-bomb = TimeBomb(TMP_DIR + QUEUE_FILE, True)
+bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['QUEUE_FILE'], True)
 message_queues = bomb.q_load()
 bomb.q_dump(message_queues)
-#A optional parameter for select is TIMEOUT
-timeout = 60
 helper = CommonHelper()
 
 
@@ -42,7 +48,7 @@ while inputs:
     if not bomb.is_sleep:
         time.sleep(10)
     print "waiting for next event"
-    readable , writable , exceptional = select.select(inputs, outputs, inputs, timeout)
+    readable , writable , exceptional = select.select(inputs, outputs, inputs, CONFIG['TIME_OUT'])
     for s in readable :
         if s is server:
             # A "readable" socket is ready to accept a connection
@@ -51,7 +57,7 @@ while inputs:
             connection.setblocking(0)
             inputs.append(connection)
         else:
-            data = s.recv(RECV_BUFFER)
+            data = s.recv(CONFIG['RECV_BUFFER'])
             if data:
                 tag, data, depth = helper.server_unpack(data)
                 if tag == TAG_GET:

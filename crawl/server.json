@@ -1,0 +1,8 @@
+{
+    "HOST":         "127.0.0.1",
+    "PORT":         5000,
+    "RECV_BUFFER":  4096,
+    "TMP_DIR":      "./tmp/",
+    "QUEUE_FILE":   "queue.pkl",
+    "TIME_OUT":      60
+}

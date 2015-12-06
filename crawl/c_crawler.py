@@ -15,25 +15,36 @@ from urlparse import urlparse, urljoin
 from pybloom import BloomFilter
 from helper import CommonHelper, TimeBomb
 from db_con import MongoHelper
+from config import Config
 
 
 # config
-HOST = '127.0.0.1'
-PORT = 5000
-RECV_BUFFER = 1024
-SERVER_BUFFER = 4096
-MAX_LINK_TIME = 256
-PAGE_CACHE_SIZE = 5
-MONGO_HOST = '192.168.99.100'
-MONGO_PORT = '32773'
-TMP_DIR = './tmp/'
-BLOOM_FILE = 'bloom.pkl'
+default_config = {
+    "HOST":               "127.0.0.1",
+    "PORT":               5000,
+    "MONGO_HOST":         "192.168.99.100",
+    "MONGO_PORT":         "32773",
+    "RECV_BUFFER":        1024,
+    "SERVER_BUFFER":      4096,
+    "MAX_LINK_COSUNT":    256,
+    "PAGE_CACHE_SIZE":    5,
+    "TMP_DIR":            "./tmp/",
+    "BLOOM_FILE":         "bloom.pkl",
+    "CRAWL_MAX_DEPTH":    999,
+    "REQUEST_TIME":       5,
+    "CRAWL_SCALE":        ["m.byr.cn"],
+    "CRAWL_SEEDS":        ["http://m.byr.cn/section"],
+    "THREADING_NUM":      3
+}
+
+CONFIG = Config('./', default_config)
+CONFIG.from_json('client.json')
 
 
 class UrlFilter:
     '''BloomFilter: check elements repetition'''
     def __init__(self, _capacity=100000, _error_rate=0.01):
-        self.bomb = TimeBomb(TMP_DIR + BLOOM_FILE)
+        self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['BLOOM_FILE'])
         self.filter = self.bomb.load()
         if self.filter is None:
             self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
@@ -52,13 +63,13 @@ class UrlFilter:
 
 
 helper = CommonHelper()
-mongo_helper = MongoHelper(MONGO_HOST, MONGO_PORT)
+mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
 Bfilter = UrlFilter()
 
 class Crawler(threading.Thread):
     '''crawl post data in m.byr.cn site'''
-    def __init__(self, _scale, _connect_time=5, _host=HOST, _port=PORT,
-                 _max_depth=999, _page_cache_size=PAGE_CACHE_SIZE):
+    def __init__(self, _scale, _connect_time=CONFIG['REQUEST_TIME'], _host=CONFIG['HOST'], _port=CONFIG['PORT'],
+                 _max_depth=CONFIG['CRAWL_MAX_DEPTH'], _page_cache_size=CONFIG['PAGE_CACHE_SIZE']):
         threading.Thread.__init__(self)
         self.scale = _scale
         self.connect_time = _connect_time
@@ -132,11 +143,11 @@ class Crawler(threading.Thread):
         # 二次握手
         num = 0
         while True:
-            if num > MAX_LINK_TIME:
+            if num > CONFIG['MAX_LINK_COSUNT']:
                 break
             self.client.send(helper.pack(data))
             try:
-                message = self.client.recv(RECV_BUFFER)
+                message = self.client.recv(CONFIG['RECV_BUFFER'])
             except:
                 time.sleep(0.5)
                 num += 1
@@ -149,11 +160,11 @@ class Crawler(threading.Thread):
         # 二次握手
         num = 0
         while True:
-            if num > MAX_LINK_TIME:
+            if num > CONFIG['MAX_LINK_COSUNT']:
                 break
             self.client.send(helper.get_url())
             try:
-                data = self.client.recv(RECV_BUFFER)
+                data = self.client.recv(CONFIG['RECV_BUFFER'])
             except:
                 num += 1
             else:
@@ -190,7 +201,7 @@ class Crawler(threading.Thread):
             # limit send buffer to server receive buffer
             end = -1
             while True:
-                if sys.getsizeof(page_links) > SERVER_BUFFER * 0.9:
+                if sys.getsizeof(page_links) > CONFIG['SERVER_BUFFER'] * 0.9:
                     page_links = page_links[:end]
                     end -= 2
                 else:
@@ -201,21 +212,23 @@ class Crawler(threading.Thread):
 
 
 def _recover():
-    seeds = ['http://m.byr.cn/section']
-    Bfilter.add(seeds)
-    pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    pre_client.connect((HOST, PORT))
-    pre_client.send(helper.pack({'s':1, 'u':seeds, 'd':0}))
-    pre_client.close()
+    try:
+        Bfilter.add(CONFIG['CRAWL_SEEDS'])
+        pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        pre_client.connect((CONFIG['HOST'], CONFIG['PORT']))
+        pre_client.send(helper.pack({'s':1, 'u':CONFIG['CRAWL_SEEDS'], 'd':0}))
+        pre_client.close()
+    except:
+        print "recover initialize fail."
+
 
 if __name__ == '__main__':
-    urls_scale = ['m.byr.cn']
     _recover()
-    for i in range(3):
-        t = Crawler(urls_scale)
+    for i in range(CONFIG['THREADING_NUM']):
+        t = Crawler(CONFIG['CRAWL_SCALE'])
         t.setDaemon(True)
         t.start()
-        time.sleep(3)
+        time.sleep(CONFIG['THREADING_NUM'] * 0.8)
     while t.isAlive():
         time.sleep(10)
     Bfilter.bomb.stop()
