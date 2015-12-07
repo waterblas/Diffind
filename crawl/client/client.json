@@ -7,7 +7,7 @@
     "SERVER_BUFFER":      4096,
     "MAX_LINK_COSUNT":    256,
     "PAGE_CACHE_SIZE":    5,
-    "TMP_DIR":            "./tmp/",
+    "TMP_DIR":            "../tmp/",
     "BLOOM_FILE":         "bloom.pkl",
     "CRAWL_MAX_DEPTH":    999,
     "REQUEST_TIME":       5,

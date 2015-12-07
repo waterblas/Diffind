@@ -13,9 +13,9 @@ from bs4 import BeautifulSoup
 import robotexclusionrulesparser as rerp
 from urlparse import urlparse, urljoin
 from pybloom import BloomFilter
-from helper import CommonHelper, TimeBomb
+from crawlstuff import CommonHelper, TimeBomb
 from db_con import MongoHelper
-from config import Config
+from commonstuff import Config
 
 
 # config

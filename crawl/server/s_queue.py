@@ -8,8 +8,8 @@ TCP/IP socket and configuring it to listen on an address
 import select
 import socket
 import Queue
-from helper import CommonHelper, TimeBomb
-from config import Config
+from crawlstuff import CommonHelper, TimeBomb
+from commonstuff import Config
 
 # config
 default_config = {
