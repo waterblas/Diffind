@@ -96,10 +96,7 @@ class TimeBomb:
                 q.put(item)
 
     def q_load(self):
-        try:
-            coll = self.load()
-        except:
-            coll = []
+        coll = self.load() or []
         q = Queue.Queue()
         for item in coll:
             q.put(item)

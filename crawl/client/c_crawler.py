@@ -17,7 +17,6 @@ from crawlstuff import CommonHelper, TimeBomb
 from db_con import MongoHelper
 from commonstuff import Config
 
-
 # config
 default_config = {
     "HOST":               "127.0.0.1",
@@ -39,6 +38,8 @@ default_config = {
 
 CONFIG = Config('./', default_config)
 CONFIG.from_json('client.json')
+helper = CommonHelper()
+mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
 
 
 class UrlFilter:
@@ -62,13 +63,10 @@ class UrlFilter:
         return res
 
 
-helper = CommonHelper()
-mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
-Bfilter = UrlFilter()
-
 class Crawler(threading.Thread):
+
     '''crawl post data in m.byr.cn site'''
-    def __init__(self, _scale, _connect_time=CONFIG['REQUEST_TIME'], _host=CONFIG['HOST'], _port=CONFIG['PORT'],
+    def __init__(self, _scale, _bloom_obj, _connect_time=CONFIG['REQUEST_TIME'], _host=CONFIG['HOST'], _port=CONFIG['PORT'],
                  _max_depth=CONFIG['CRAWL_MAX_DEPTH'], _page_cache_size=CONFIG['PAGE_CACHE_SIZE']):
         threading.Thread.__init__(self)
         self.scale = _scale
@@ -80,6 +78,7 @@ class Crawler(threading.Thread):
         self.client.settimeout(2)
         self.max_depth = _max_depth
         self.page_cache = Queue.Queue(_page_cache_size)
+        self.bloom_obj = _bloom_obj
 
     def _in_scale(self, url):
         parsed_url = urlparse(url)
@@ -184,7 +183,7 @@ class Crawler(threading.Thread):
             if not self._in_scale(url):
                 continue
             page = self._get_page(url)
-            Bfilter.add([url])
+            self.bloom_obj.add([url])
             if page is None:
                 continue
             # dealt with crawled data
@@ -196,8 +195,8 @@ class Crawler(threading.Thread):
                 mongo_helper.insert_many(coll)
                 time.sleep(1.5)
             self.page_cache.put({url: page})
-            # ignore url beyond assigned depth
-            page_links = Bfilter.check(self._get_page_links(page, url, depth))
+            # ignore url beyond assigned depth. change it if you work for distributive crawlers
+            page_links = self.bloom_obj.check(self._get_page_links(page, url, depth))
             # limit send buffer to server receive buffer
             end = -1
             while True:
@@ -207,32 +206,36 @@ class Crawler(threading.Thread):
                 else:
                     break
             if len(page_links) > 0:
-                Bfilter.add(page_links)
+                self.bloom_obj.add(page_links)
                 self.enqueue(page_links, depth+1)
 
 
-def _recover():
-    try:
-        Bfilter.add(CONFIG['CRAWL_SEEDS'])
-        pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        pre_client.connect((CONFIG['HOST'], CONFIG['PORT']))
-        pre_client.send(helper.pack({'s':1, 'u':CONFIG['CRAWL_SEEDS'], 'd':0}))
-        pre_client.close()
-    except:
-        print "recover initialize fail."
+class CCrawler(object):
+    """CCrawler Daemon for crawling web page"""
+    def __init__(self):
+        super(CCrawler, self).__init__()
 
+    @staticmethod
+    def _recover(Bfilter):
+        try:
+            Bfilter.add(CONFIG['CRAWL_SEEDS'])
+            pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            pre_client.connect((CONFIG['HOST'], CONFIG['PORT']))
+            pre_client.send(helper.pack({'s':1, 'u':CONFIG['CRAWL_SEEDS'], 'd':0}))
+            pre_client.close()
+        except:
+            print "recover initialize fail."
 
-if __name__ == '__main__':
-    _recover()
-    for i in range(CONFIG['THREADING_NUM']):
-        t = Crawler(CONFIG['CRAWL_SCALE'])
-        t.setDaemon(True)
-        t.start()
-        time.sleep(CONFIG['THREADING_NUM'] * 0.8)
-    while t.isAlive():
-        time.sleep(10)
-    Bfilter.bomb.stop()
-    print 'stop bomb threading'
-
-
-
+    def start(self):
+        Bfilter = UrlFilter()
+        CCrawler._recover(Bfilter)
+        for i in range(CONFIG['THREADING_NUM']):
+            t = Crawler(CONFIG['CRAWL_SCALE'], Bfilter)
+            t.setDaemon(True)
+            t.start()
+            time.sleep(CONFIG['THREADING_NUM'] * 0.8)
+        while t.isAlive():
+            time.sleep(10)
+        Bfilter.bomb.stop()
+        mongo_helper.close()
+        print 'stop bomb threading'

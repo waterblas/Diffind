@@ -20,77 +20,82 @@ default_config = {
     "QUEUE_FILE":   "queue.pkl",
     "TIME_OUT":      60           # a option: parameter for select is TIMEOUT
 }
+
 CONFIG = Config('./', default_config)
 CONFIG.from_json('server.json')
-
-
 TAG_GET = 0
 TAG_PUT = 1
-#create a socket
-server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-server.setblocking(0)
-#set option reused
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR  , 1)
-server.bind((CONFIG['HOST'], CONFIG['PORT']))
-server.listen(10)
-#sockets from which we except to read
-inputs = [server]
-#sockets from which we expect to write
-outputs = []
-#Outgoing message queues
-bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['QUEUE_FILE'], True)
-message_queues = bomb.q_load()
-bomb.q_dump(message_queues)
-helper = CommonHelper()
 
+class SQueue(object):
+    """ queue server to listen request """
+    def __init__(self):
+        super(SQueue, self).__init__()
+        #create a socket
+        self.server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        self.server.setblocking(0)
+        #set option reused
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR  , 1)
+        self.server.bind((CONFIG['HOST'], CONFIG['PORT']))
+        self.server.listen(10)
+        #sockets from which we except to read
+        self.inputs = [self.server]
+        #sockets from which we expect to write
+        self.outputs = []
+        #Outgoing message queues
+        self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['QUEUE_FILE'], True)
+        self.message_queues = self.bomb.q_load()
+        self.bomb.q_dump(self.message_queues)
+        self.helper = CommonHelper()
 
-while inputs:
-    if not bomb.is_sleep:
-        time.sleep(10)
-    print "waiting for next event"
-    readable , writable , exceptional = select.select(inputs, outputs, inputs, CONFIG['TIME_OUT'])
-    for s in readable :
-        if s is server:
-            # A "readable" socket is ready to accept a connection
-            connection, client_address = s.accept()
-            print "    connection from ", client_address
-            connection.setblocking(0)
-            inputs.append(connection)
-        else:
-            data = s.recv(CONFIG['RECV_BUFFER'])
-            if data:
-                tag, data, depth = helper.server_unpack(data)
-                if tag == TAG_GET:
-                # Add output channel for response
-                    # print " received a request for url"
-                    if s not in outputs :
-                        outputs.append(s)
-                elif tag == TAG_PUT:
-                    print " received " , data , "from ",s.getpeername()
-                    for ele in data:
-                        message_queues.put([ele,depth])
-                    s.send('done')
-            else:
-                #Interpret empty result as closed connection
-                print "  closing", client_address
-                if s in outputs :
-                    outputs.remove(s)
-                inputs.remove(s)
+    def start(self):
+        while self.inputs:
+            if not self.bomb.is_sleep:
+                time.sleep(10)
+            print "waiting for next event"
+            readable , writable , exceptional = select.select(self.inputs, self.outputs, self.inputs, CONFIG['TIME_OUT'])
+            for s in readable :
+                if s is self.server:
+                    # A "readable" socket is ready to accept a connection
+                    connection, client_address = s.accept()
+                    print "    connection from ", client_address
+                    connection.setblocking(0)
+                    self.inputs.append(connection)
+                else:
+                    data = s.recv(CONFIG['RECV_BUFFER'])
+                    if data:
+                        tag, data, depth = self.helper.server_unpack(data)
+                        if tag == TAG_GET:
+                        # Add output channel for response
+                            # print " received a request for url"
+                            if s not in self.outputs :
+                                self.outputs.append(s)
+                        elif tag == TAG_PUT:
+                            print " received " , data , "from ",s.getpeername()
+                            for ele in data:
+                                self.message_queues.put([ele,depth])
+                            s.send('done')
+                    else:
+                        #Interpret empty result as closed connection
+                        print "  closing", client_address
+                        if s in self.outputs :
+                            self.outputs.remove(s)
+                        self.inputs.remove(s)
+                        s.close()
+            for s in writable:
+                try:
+                    next_msg = self.message_queues.get_nowait()
+                except Queue.Empty:
+                    print " " , s.getpeername() , 'queue empty'
+                    s.send('wait')
+                else:
+                    print " sending " , next_msg , " to ", s.getpeername()
+                    s.send(self.helper.pack(next_msg))
+                self.outputs.remove(s)
+            for s in exceptional:
+                print " exception condition on ", s.getpeername()
+                #stop listening for input on the connection
+                self.inputs.remove(s)
+                if s in self.outputs:
+                    self.outputs.remove(s)
                 s.close()
-    for s in writable:
-        try:
-            next_msg = message_queues.get_nowait()
-        except Queue.Empty:
-            print " " , s.getpeername() , 'queue empty'
-            s.send('wait')
-        else:
-            print " sending " , next_msg , " to ", s.getpeername()
-            s.send(helper.pack(next_msg))
-        outputs.remove(s)
-    for s in exceptional:
-        print " exception condition on ", s.getpeername()
-        #stop listening for input on the connection
-        inputs.remove(s)
-        if s in outputs:
-            outputs.remove(s)
-        s.close()
+ 

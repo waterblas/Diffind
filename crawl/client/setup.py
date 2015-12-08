@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
     print 'Auto install requires failed'
-
+# yum install python-devel for missing #include "Python.h"
 setup(
     name='CrawlClient',
     version='0.1dev',
@@ -21,6 +21,6 @@ setup(
         "robotexclusionrulesparser == 1.6.2",
         "beautifulsoup4 >= 4.4.1",
         "pymongo >= 3.1.1",
-        "pybloom >= 1.1"  # yum install python-devel for missing #include "Python.h"
+        "pybloom >= 1.1"
     ]
 )
