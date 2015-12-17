@@ -45,11 +45,15 @@ mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
 class UrlFilter:
     '''BloomFilter: check elements repetition'''
     def __init__(self, _capacity=100000, _error_rate=0.01):
-        self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['BLOOM_FILE'])
-        self.filter = self.bomb.load()
-        if self.filter is None:
+        # determine if open backup bloom data by time
+        if CONFIG.get('BACKUP', 0) == 1:
+            self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['BLOOM_FILE'])
+            self.filter = self.bomb.load()
+            if self.filter is None:
+                self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
+            self.bomb.dump(self.filter)
+        else:
             self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
-        self.bomb.dump(self.filter)
 
     def add(self, links):
         for ele in links:
@@ -236,6 +240,7 @@ class CCrawler(object):
             time.sleep(CONFIG['THREADING_NUM'] * 0.8)
         while t.isAlive():
             time.sleep(10)
-        Bfilter.bomb.stop()
+        if CONFIG.get('BACKUP', 0) == 1:
+            Bfilter.bomb.stop()
         mongo_helper.close()
         print 'stop bomb threading'

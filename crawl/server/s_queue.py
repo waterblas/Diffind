@@ -42,14 +42,18 @@ class SQueue(object):
         #sockets from which we expect to write
         self.outputs = []
         #Outgoing message queues
-        self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['QUEUE_FILE'], True)
-        self.message_queues = self.bomb.q_load()
-        self.bomb.q_dump(self.message_queues)
+        # determine if open backup queue data by time
+        if CONFIG.get('BACKUP', 0) == 1:
+            self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['QUEUE_FILE'], True)
+            self.message_queues = self.bomb.q_load()
+            self.bomb.q_dump(self.message_queues)
+        else:
+            self.message_queues = Queue.Queue()
         self.helper = CommonHelper()
 
     def start(self):
         while self.inputs:
-            if not self.bomb.is_sleep:
+            if CONFIG.get('BACKUP', 0) == 1 and (not self.bomb.is_sleep):
                 time.sleep(10)
             print "waiting for next event"
             readable , writable , exceptional = select.select(self.inputs, self.outputs, self.inputs, CONFIG['TIME_OUT'])
