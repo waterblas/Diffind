@@ -1,0 +1,23 @@
+crawlserver:
+    build: ./crawl_server
+    volumes:
+        - /data/diffind/logs/server:/mnt/logs
+    expose:
+        - 5000
+
+crawldb:
+    image: mongo:latest
+    volumes:
+        - /data/diffind/db:/data/db
+    ports:
+        - "27017:27017"
+    expose:
+        - 27017
+
+crawlclient:
+    build: ./crawl_client
+    volumes:
+        - /data/diffind/logs/client:/mnt/logs
+    links:
+        - crawldb
+        - crawlserver
