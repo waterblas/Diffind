@@ -1,3 +1,4 @@
+import sys
 from pymongo import MongoClient, errors
 from datetime import datetime
 
@@ -12,7 +13,12 @@ class MongoHelper:
         self.coll.drop()
 
     def _prepare(self):
-        self.coll.create_index("url", unique=True)
+        try:
+            self.coll.create_index("url", unique=True)
+        except Exception, e:
+            print "error info: %s" % e
+            sys.exit(1)
+            raise
 
     def close(self):
         self.client.close()
