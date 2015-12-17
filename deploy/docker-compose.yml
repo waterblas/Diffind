@@ -10,7 +10,7 @@ crawldb:
     volumes:
         - /data/diffind/db:/data/db
     ports:
-        - "27017:27017"
+        - "27187:27017"
     expose:
         - 27017
 

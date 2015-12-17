@@ -52,7 +52,7 @@ def qdumper(q):
 
 class TimeBomb:
     '''save crawler Bloom Filter or server queue at regular time'''
-    def __init__(self, _path='./tmp/', _daemon=False, _time=6):
+    def __init__(self, _path='./tmp/', _daemon=False, _time=600):
         self.file_path = _path
         self.sleep_time = _time
         self.killall = False
