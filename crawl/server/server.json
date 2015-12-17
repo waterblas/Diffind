@@ -4,5 +4,6 @@
     "RECV_BUFFER":  4096,
     "TMP_DIR":      "../backup/",
     "QUEUE_FILE":   "queue.pkl",
-    "TIME_OUT":      60
+    "TIME_OUT":      60,
+    "LOG_PATH":     "./logs/"
 }

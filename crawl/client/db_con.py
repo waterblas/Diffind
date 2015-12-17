@@ -6,6 +6,7 @@ class MongoHelper:
         self.client = MongoClient("mongodb://%s:%s" % (_host, _port))
         self.db = self.client[_db]
         self.coll = self.db[_coll]
+        self._prepare()
 
     def __remove(self):
         self.coll.drop()

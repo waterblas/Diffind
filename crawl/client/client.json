@@ -13,5 +13,6 @@
     "REQUEST_TIME":       5,
     "CRAWL_SCALE":        ["m.byr.cn"],
     "CRAWL_SEEDS":        ["http://m.byr.cn/section"],
-    "THREADING_NUM":      3
+    "THREADING_NUM":      3,
+    "LOG_PATH":           "./logs/"
 }
