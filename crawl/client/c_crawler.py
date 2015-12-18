@@ -73,7 +73,7 @@ class Crawler(threading.Thread):
     def __init__(self, _scale, _bloom_obj, _connect_time=CONFIG['REQUEST_TIME'], _host=CONFIG['HOST'], _port=CONFIG['PORT'],
                  _max_depth=CONFIG['CRAWL_MAX_DEPTH'], _page_cache_size=CONFIG['PAGE_CACHE_SIZE']):
         threading.Thread.__init__(self)
-        self.scale = _scale
+        self.scale = set(_scale)
         self.connect_time = _connect_time
         self.robots_cache = {}
         self.client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -97,15 +97,19 @@ class Crawler(threading.Thread):
             rp = self.robots_cache[page_url[1]]
         else:
             base = page_url[0] + '://' + page_url[1]
+            # jump fetch robots that not in scale
+            if not self._in_scale(base):
+                return False
             robots_url = base + '/robots.txt'
             rp = rerp.RobotExclusionRulesParser()
             # rp.user_agent = 'byr'
             try:
-                rp.fetch(robots_url)
-                self.robots_cache[page_url[1]] = rp
+                rp.fetch(robots_url, timeout=3)
             except:
                 print 'robots read error: %s' % robots_url
                 return True
+            else:
+                self.robots_cache[page_url[1]] = rp
         return rp.is_allowed('*', url)
 
     def _get_page(self, url):
@@ -197,7 +201,7 @@ class Crawler(threading.Thread):
                     coll.update(self.page_cache.get())
                 # insert 5 pages into data one time
                 mongo_helper.insert_many(coll)
-                time.sleep(1.5)
+                time.sleep(1)
             self.page_cache.put({url: page})
             # ignore url beyond assigned depth. change it if you work for distributive crawlers
             page_links = self.bloom_obj.check(self._get_page_links(page, url, depth))
