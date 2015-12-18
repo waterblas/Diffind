@@ -43,7 +43,7 @@ helper = CommonHelper()
 mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
 
 
-class UrlFilter:
+class UrlBloom:
     '''BloomFilter: check elements repetition'''
     def __init__(self, _capacity=100000, _error_rate=0.001):
         # determine if open backup bloom data by time
@@ -60,7 +60,7 @@ class UrlFilter:
         for ele in links:
             self.filter.add(ele)
 
-    def check(self, links):
+    def clean(self, links):
         res = []
         for ele in links:
             if ele not in self.filter:
@@ -98,9 +98,6 @@ class Crawler(threading.Thread):
             rp = self.robots_cache[page_url[1]]
         else:
             base = page_url[0] + '://' + page_url[1]
-            # jump fetch robots that not in scale
-            if not self._in_scale(base):
-                return False
             robots_url = base + '/robots.txt'
             rp = rerp.RobotExclusionRulesParser()
             # rp.user_agent = 'byr'
@@ -139,9 +136,25 @@ class Crawler(threading.Thread):
                 continue
             elif not parser[1]:
                 link = urljoin(base, link)
-            if self._robots_pass(link):
+        return page_links
+
+    def _links_filter(self, links):
+        page_links = []
+        for link in links:
+            if self._in_scale(link) and self._robots_pass(link):
                 page_links.append(link)
         return page_links
+
+    def _limit_links_size(self, links):
+        ''' limit send buffer to server receive buffer '''
+        end = -1
+        while True:
+            if sys.getsizeof(links) > CONFIG['SERVER_BUFFER'] * 0.9:
+                links = links[:end]
+                end -= 2
+            else:
+                break
+        return links
 
     def enqueue(self, links, depth):
         '''put urls into server queue'''
@@ -186,35 +199,32 @@ class Crawler(threading.Thread):
         print " %s received %s" % (self.client.getpeername(),url)
         return url, depth
 
+    def save_data(self, url, page):
+        ''' dealt with crawled data '''
+        if self.page_cache.full():
+            coll = {}
+            while not self.page_cache.empty():
+                coll.update(self.page_cache.get())
+            # insert 5 pages into data one time
+            mongo_helper.insert_many(coll)
+            time.sleep(1)
+        self.page_cache.put({url: page})
+
     def run(self):
         while True:
             url, depth = self.dequeue()
-            if not self._in_scale(url):
-                continue
+            # if not self._in_scale(url):
+            #     continue
             page = self._get_page(url)
             self.bloom_obj.add([url])
             if page is None:
                 continue
-            # dealt with crawled data
-            if self.page_cache.full():
-                coll = {}
-                while not self.page_cache.empty():
-                    coll.update(self.page_cache.get())
-                # insert 5 pages into data one time
-                mongo_helper.insert_many(coll)
-                time.sleep(1)
-            self.page_cache.put({url: page})
-            # ignore url beyond assigned depth. change it if you work for distributive crawlers
-            page_links = self.bloom_obj.check(self._get_page_links(page, url, depth))
-            # limit send buffer to server receive buffer
-            end = -1
-            while True:
-                if sys.getsizeof(page_links) > CONFIG['SERVER_BUFFER'] * 0.9:
-                    page_links = page_links[:end]
-                    end -= 2
-                else:
-                    break
+            self.save_data(url, page)
+            # ignore url beyond assigned depth. 
+            page_links = self.bloom_obj.clean(self._links_filter(self._get_page_links(page, url, depth)))
+            page_links = self._limit_links_size(page_links)
             if len(page_links) > 0:
+                # annotation it if you work for distributive crawlers
                 self.bloom_obj.add(page_links)
                 self.enqueue(page_links, depth+1)
 
@@ -236,7 +246,7 @@ class CCrawler(object):
             print "recover initialize fail."
 
     def start(self):
-        Bfilter = UrlFilter(_capacity=CONFIG['BLOOM_CAPACITY'])
+        Bfilter = UrlBloom(_capacity=CONFIG['BLOOM_CAPACITY'])
         CCrawler._recover(Bfilter)
         for i in range(CONFIG['THREADING_NUM']):
             t = Crawler(CONFIG['CRAWL_SCALE'], Bfilter)
