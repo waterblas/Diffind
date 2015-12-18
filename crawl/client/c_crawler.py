@@ -33,7 +33,8 @@ default_config = {
     "REQUEST_TIME":       5,
     "CRAWL_SCALE":        ["m.byr.cn"],
     "CRAWL_SEEDS":        ["http://m.byr.cn/section"],
-    "THREADING_NUM":      3
+    "THREADING_NUM":      3,
+    "BLOOM_CAPACITY":     1000000
 }
 
 CONFIG = Config('./', default_config)
@@ -44,7 +45,7 @@ mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
 
 class UrlFilter:
     '''BloomFilter: check elements repetition'''
-    def __init__(self, _capacity=100000, _error_rate=0.01):
+    def __init__(self, _capacity=100000, _error_rate=0.001):
         # determine if open backup bloom data by time
         if CONFIG.get('BACKUP', 0) == 1:
             self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['BLOOM_FILE'])
@@ -235,7 +236,7 @@ class CCrawler(object):
             print "recover initialize fail."
 
     def start(self):
-        Bfilter = UrlFilter()
+        Bfilter = UrlFilter(_capacity=CONFIG['BLOOM_CAPACITY'])
         CCrawler._recover(Bfilter)
         for i in range(CONFIG['THREADING_NUM']):
             t = Crawler(CONFIG['CRAWL_SCALE'], Bfilter)

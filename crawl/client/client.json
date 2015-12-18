@@ -15,5 +15,6 @@
     "CRAWL_SEEDS":          ["http://m.byr.cn/section"],
     "THREADING_NUM":        3,
     "LOG_PATH":             "./logs/",
-    "BACKUP":               1
+    "BACKUP":               1,
+    "BLOOM_CAPACITY":       5000000
 }

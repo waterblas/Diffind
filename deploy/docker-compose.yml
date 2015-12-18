@@ -1,5 +1,6 @@
 crawlserver:
     build: ./crawl_server
+    # command: cover the container default CMD
     volumes:
         - /data/diffind/logs/server:/mnt/logs
     expose:
