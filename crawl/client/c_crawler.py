@@ -25,7 +25,7 @@ default_config = {
     "MONGO_PORT":         "32773",
     "RECV_BUFFER":        1024,
     "SERVER_BUFFER":      4096,
-    "MAX_LINK_COSUNT":    256,
+    "MAX_LINK_COUNT":    256,
     "PAGE_CACHE_SIZE":    5,
     "TMP_DIR":            "./tmp/",
     "BLOOM_FILE":         "bloom.pkl",
@@ -144,6 +144,7 @@ class Crawler(threading.Thread):
                 continue
             elif not parser[1]:
                 link = urljoin(base, link)
+            page_links.append(link)
         return page_links
 
     def _links_filter(self, links):
@@ -172,7 +173,7 @@ class Crawler(threading.Thread):
         # 二次握手
         num = 0
         while True:
-            if num > CONFIG['MAX_LINK_COSUNT']:
+            if num > CONFIG['MAX_LINK_COUNT']:
                 break
             self.client.send(helper.pack(data))
             try:
@@ -189,7 +190,7 @@ class Crawler(threading.Thread):
         # 二次握手
         num = 0
         while True:
-            if num > CONFIG['MAX_LINK_COSUNT']:
+            if num > CONFIG['MAX_LINK_COUNT']:
                 break
             self.client.send(helper.get_url())
             try:
@@ -203,6 +204,7 @@ class Crawler(threading.Thread):
             self.client.close()
         elif data == 'wait':
             time.sleep(2)
+            return None, None
         url, depth = helper.client_unpack(data)
         print " %s received %s" % (self.client.getpeername(),url)
         return url, depth
@@ -221,6 +223,8 @@ class Crawler(threading.Thread):
     def run(self):
         while True:
             url, depth = self.dequeue()
+            if url is None:
+                continue
             # if not self._in_scale(url):
             #     continue
             page = self._get_page(url)
@@ -246,24 +250,24 @@ class CCrawler(object):
         super(CCrawler, self).__init__()
 
     @staticmethod
-    def _recover(Bfilter):
+    def _recover():
         try:
-            Bfilter.add(CONFIG['CRAWL_SEEDS'])
             pre_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             pre_client.connect((CONFIG['HOST'], CONFIG['PORT']))
             pre_client.send(helper.pack({'s':1, 'u':CONFIG['CRAWL_SEEDS'], 'd':0}))
             pre_client.close()
+            time.sleep(1)
         except:
             print "recover initialize fail."
 
     def start(self):
         Bfilter = UrlBloom(_capacity=CONFIG['BLOOM_CAPACITY'])
-        CCrawler._recover(Bfilter)
+        CCrawler._recover()
         for i in range(CONFIG['THREADING_NUM']):
             t = Crawler(CONFIG['CRAWL_SCALE'], Bfilter)
             t.setDaemon(True)
             t.start()
-            time.sleep(CONFIG['THREADING_NUM'] * 0.8)
+            time.sleep(3)
         while t.isAlive():
             time.sleep(10)
         if CONFIG.get('BACKUP', 0) == 1:

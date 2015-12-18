@@ -73,7 +73,7 @@ class TimeBomb:
         try:
             with open(self.file_path, 'r') as f_out:
                 res = pickle.load(f_out)
-        except IOError:
+        except:
             print '%s not exist' % self.file_path
         return res
 
