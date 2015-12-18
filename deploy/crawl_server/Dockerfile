@@ -1,9 +1,9 @@
 FROM centos:latest
 MAINTAINER ldy
 
-WORKDIR /mnt
+WORKDIR /data/server
 RUN mkdir logs backup
-VOLUME /mnt/logs
+VOLUME /data/server
 
 WORKDIR /code
 ADD ./server.tar.gz /code

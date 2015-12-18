@@ -7,14 +7,14 @@
     "SERVER_BUFFER":        4096,
     "MAX_LINK_COSUNT":      256,
     "PAGE_CACHE_SIZE":      5,
-    "TMP_DIR":              "/mnt/backup/",
+    "TMP_DIR":              "/data/client/backup/",
     "BLOOM_FILE":           "bloom.pkl",
     "CRAWL_MAX_DEPTH":      128,
     "REQUEST_TIME":         5,
     "CRAWL_SCALE":          ["m.byr.cn"],
     "CRAWL_SEEDS":          ["http://m.byr.cn/section"],
     "THREADING_NUM":        3,
-    "LOG_PATH":             "/mnt/logs/",
+    "LOG_PATH":             "/data/client/logs/",
     "BACKUP":               1,
     "BLOOM_CAPACITY":       5000000
 }
