@@ -45,7 +45,8 @@ mongo_helper = MongoHelper(CONFIG['MONGO_HOST'], CONFIG['MONGO_PORT'])
 
 class UrlBloom:
     '''BloomFilter: check elements repetition'''
-    def __init__(self, _capacity=100000, _error_rate=0.001):
+    def __init__(self, _capacity=1000000, _error_rate=0.00001):
+        self.is_full = False
         # determine if open backup bloom data by time
         if CONFIG.get('BACKUP', 0) == 1:
             self.bomb = TimeBomb(CONFIG['TMP_DIR'] + CONFIG['BLOOM_FILE'])
@@ -57,8 +58,15 @@ class UrlBloom:
             self.filter = BloomFilter(capacity=_capacity, error_rate=_error_rate)
 
     def add(self, links):
-        for ele in links:
-            self.filter.add(ele)
+        if self.is_full:
+            return
+        try:
+            for ele in links:
+                self.filter.add(ele)
+        except IndexError:
+            # rasie IndexError when bloom is at capacity
+            self.is_full = True
+
 
     def clean(self, links):
         res = []
@@ -220,6 +228,9 @@ class Crawler(threading.Thread):
             if page is None:
                 continue
             self.save_data(url, page)
+            # cancel enqueue crawled url to server
+            if self.bloom_obj.is_full:
+                continue
             # ignore url beyond assigned depth. 
             page_links = self.bloom_obj.clean(self._links_filter(self._get_page_links(page, url, depth)))
             page_links = self._limit_links_size(page_links)
