@@ -2,7 +2,8 @@ crawlserver:
     build: ./crawl_server
     # command: cover the container default CMD
     volumes:
-        - /data/diffind/server:/data/server
+        - /data/diffind/server/logs:/data/server/logs
+        - /data/diffind/server/backup:/data/server/backup
     expose:
         - 5000
 
@@ -18,7 +19,8 @@ crawldb:
 crawlclient:
     build: ./crawl_client
     volumes:
-        - /data/diffind/client:/data/client
+        - /data/diffind/client/logs:/data/client/logs
+        - /data/diffind/client/backup:/data/client/backup
     links:
         - crawldb
         - crawlserver

@@ -11,11 +11,11 @@ ADD ./server.tar.gz /code
 COPY ./server.json /code/crawl/server
 
 # RUN yum check-update && yum install -y python-pip
-ADD https://bootstrap.pypa.io/get-pip.py ./
-RUN python get-pip.py
+# ADD https://bootstrap.pypa.io/get-pip.py ./
+# RUN python get-pip.py
 
 WORKDIR crawl/server
 RUN python setup.py install
 
 EXPOSE 5000
-CMD python run.py >/mnt/logs/debug.log 2>/mnt/logs/error.log
+CMD python run.py >/data/server/logs/debug.log 2>/data/server/logs/error.log

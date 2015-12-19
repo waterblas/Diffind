@@ -18,4 +18,4 @@ RUN yum install -y gcc python-devel
 WORKDIR crawl/client
 RUN python setup.py install
 
-CMD python run.py >/mnt/logs/debug.log 2>/mnt/logs/error.log
+CMD python run.py >/data/client/logs/debug.log 2>/data/client/logs/error.log
