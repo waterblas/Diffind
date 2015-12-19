@@ -138,7 +138,11 @@ class Crawler(threading.Thread):
             link = tag.get('href')
             if link is None:
                 continue
-            parser = urlparse(link)
+            try:
+                parser = urlparse(link)
+            except ValueError:
+                print "urlparse error: Invalid URL"
+                continue
             # 忽略网页的锚的href
             if parser[5] and not parser[2]:
                 continue
