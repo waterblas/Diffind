@@ -16,6 +16,7 @@ from pybloom import BloomFilter
 from crawlstuff import CommonHelper, TimeBomb
 from db_con import MongoHelper
 from commonstuff import Config
+from custom_excluder import excluder
 
 # config
 default_config = {
@@ -92,20 +93,19 @@ class Crawler(threading.Thread):
         self.max_depth = _max_depth
         self.page_cache = Queue.Queue(_page_cache_size)
         self.bloom_obj = _bloom_obj
+        self.custom_excluder = excluder() 
 
-    def _in_scale(self, url):
-        parsed_url = urlparse(url)
+    def _in_scale(self, parsed_url):
         if parsed_url[1] in self.scale:
             return True
         return False
 
-    def _robots_pass(self, url):
+    def _robots_pass(self, parsed_url):
         ''' keep on Robots Exclusion Protocol '''
-        page_url = urlparse(url)
-        if page_url[1] in self.robots_cache:
-            rp = self.robots_cache[page_url[1]]
+        if parsed_url[1] in self.robots_cache:
+            rp = self.robots_cache[parsed_url[1]]
         else:
-            base = page_url[0] + '://' + page_url[1]
+            base = parsed_url[0] + '://' + parsed_url[1]
             robots_url = base + '/robots.txt'
             rp = rerp.RobotExclusionRulesParser()
             # rp.user_agent = 'byr'
@@ -115,7 +115,7 @@ class Crawler(threading.Thread):
                 print 'robots read error: %s' % robots_url
                 return True
             else:
-                self.robots_cache[page_url[1]] = rp
+                self.robots_cache[parsed_url[1]] = rp
         return rp.is_allowed('*', url)
 
     def _get_page(self, url):
@@ -154,7 +154,9 @@ class Crawler(threading.Thread):
     def _links_filter(self, links):
         page_links = []
         for link in links:
-            if self._in_scale(link) and self._robots_pass(link):
+            parsed_url = urlparse(url)
+            if self._in_scale(parsed_url) and self._robots_pass(parsed_url) and \
+                not self.custom_excluder.fit(parsed_url):
                 page_links.append(link)
         return page_links
 
