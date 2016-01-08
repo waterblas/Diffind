@@ -5,7 +5,7 @@
     "MONGO_PORT":           "27017",
     "RECV_BUFFER":          1024,
     "SERVER_BUFFER":        4096,
-    "MAX_LINK_COUNT":      256,
+    "MAX_LINK_COUNT":       256,
     "PAGE_CACHE_SIZE":      5,
     "TMP_DIR":              "/data/client/backup/",
     "BLOOM_FILE":           "bloom.pkl",
@@ -16,5 +16,5 @@
     "THREADING_NUM":        3,
     "LOG_PATH":             "/data/client/logs/",
     "BACKUP":               1,
-    "BLOOM_CAPACITY":       5000000
+    "BLOOM_CAPACITY":       3000000
 }

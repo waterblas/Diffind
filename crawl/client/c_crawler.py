@@ -26,7 +26,7 @@ default_config = {
     "MONGO_PORT":         "32773",
     "RECV_BUFFER":        1024,
     "SERVER_BUFFER":      4096,
-    "MAX_LINK_COUNT":    256,
+    "MAX_LINK_COUNT":     256,
     "PAGE_CACHE_SIZE":    5,
     "TMP_DIR":            "./tmp/",
     "BLOOM_FILE":         "bloom.pkl",
@@ -116,7 +116,7 @@ class Crawler(threading.Thread):
                 return True
             else:
                 self.robots_cache[parsed_url[1]] = rp
-        return rp.is_allowed('*', url)
+        return rp.is_allowed('*', parsed_url.geturl())
 
     def _get_page(self, url):
         '''get the web page content based on url'''
@@ -129,7 +129,7 @@ class Crawler(threading.Thread):
 
     def _get_page_links(self, page, url, depth):
         '''get urls in the web page'''
-        page_links = []
+        page_links = set()
         if depth > self.max_depth:
             return page_links
         base = '://'.join(urlparse(url)[0:2])
@@ -148,13 +148,13 @@ class Crawler(threading.Thread):
                 continue
             elif not parser[1]:
                 link = urljoin(base, link)
-            page_links.append(link)
+            page_links.add(link)
         return page_links
 
     def _links_filter(self, links):
         page_links = []
         for link in links:
-            parsed_url = urlparse(url)
+            parsed_url = urlparse(link)
             if self._in_scale(parsed_url) and self._robots_pass(parsed_url) and \
                 not self.custom_excluder.fit(parsed_url):
                 page_links.append(link)

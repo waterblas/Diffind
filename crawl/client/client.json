@@ -16,5 +16,5 @@
     "THREADING_NUM":        3,
     "LOG_PATH":             "./logs/",
     "BACKUP":               1,
-    "BLOOM_CAPACITY":       5000000
+    "BLOOM_CAPACITY":       3000000
 }
