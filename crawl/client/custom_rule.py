@@ -43,4 +43,17 @@ class excluder(object):
         self.url_path = (_parsed_url.path).split('/', 4)
         return self.only_uid_see_exclude() or self.section_exclude() or \
             self.board_exclude() or self.single_article_exclude()
+
+
+class limiter(object):
+    """only crawl page that has following feature"""
+    def __init__(self, arg):
+        super(debooster, self).__init__()
+        self.parsed_url = None
+        self.url_path = None
+
+    def fit(self, url):
+        return True
+
+
         

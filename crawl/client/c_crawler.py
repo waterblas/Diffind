@@ -16,7 +16,7 @@ from pybloom import BloomFilter
 from crawlstuff import CommonHelper, TimeBomb
 from db_con import MongoHelper
 from commonstuff import Config
-from custom_excluder import excluder
+from custom_rule import excluder, limiter
 
 # config
 default_config = {
@@ -93,7 +93,8 @@ class Crawler(threading.Thread):
         self.max_depth = _max_depth
         self.page_cache = Queue.Queue(_page_cache_size)
         self.bloom_obj = _bloom_obj
-        self.custom_excluder = excluder() 
+        self.custom_excluder = excluder()
+        self.custom_limiter = limiter()
 
     def _in_scale(self, parsed_url):
         if parsed_url[1] in self.scale:
@@ -229,7 +230,8 @@ class Crawler(threading.Thread):
     def run(self):
         while True:
             url, depth = self.dequeue()
-            if url is None:
+            """ TODO: only crawl page that has assigned features """
+            if url is None or not self.custom_limiter.fit(url):
                 continue
             # if not self._in_scale(url):
             #     continue
