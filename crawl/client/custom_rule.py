@@ -9,8 +9,12 @@ class excluder(object):
             'ForumCommittee', 'Progress', 'Score', 'sysop', 'Recommend'
         ]
 
-    def only_uid_see_exclude(self):
+    def query_exclude(self):
         query = self.parsed_url.query
+        # ignore ?p=1
+        if 'p=1' == parse_url.query:
+            return True
+        # exclude only_uid_see
         if 'au' in query.split('=', 1):
             return True
         return False
@@ -33,7 +37,7 @@ class excluder(object):
                 return True
         return False
 
-    def single_article_exclude(self):
+    def article_exclude(self):
         if 'article' in self.url_path and 'single' in self.url_path:
             return True
         return False
@@ -41,8 +45,8 @@ class excluder(object):
     def fit(self, _parsed_url):
         self.parsed_url = _parsed_url
         self.url_path = (_parsed_url.path).split('/', 4)
-        return self.only_uid_see_exclude() or self.section_exclude() or \
-            self.board_exclude() or self.single_article_exclude()
+        return self.query_exclude() or self.section_exclude() or \
+            self.board_exclude() or self.article_exclude()
 
 
 class limiter(object):
