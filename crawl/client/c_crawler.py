@@ -112,8 +112,8 @@ class Crawler(threading.Thread):
             # rp.user_agent = 'byr'
             try:
                 rp.fetch(robots_url, timeout=3)
-            except:
-                print 'robots read error: %s' % robots_url
+            except Exception, e:
+                print 'Robots read error: %s, message: %s' % (robots_url, e)
                 return True
             else:
                 self.robots_cache[parsed_url[1]] = rp
@@ -124,8 +124,8 @@ class Crawler(threading.Thread):
         try:
             r = requests.get(url, timeout=self.connect_time)
             return r.text
-        except:
-            print 'get page content error, url:%s' % url
+        except Exception, e:
+            print "Requests url error:%s, message: %s" % (url, e)
             return None
 
     def _get_page_links(self, page, url, depth):
@@ -265,8 +265,8 @@ class CCrawler(object):
             pre_client.send(helper.pack({'s':1, 'u':CONFIG['CRAWL_SEEDS'], 'd':0}))
             pre_client.close()
             time.sleep(1)
-        except:
-            print "recover initialize fail."
+        except Exception, e:
+            print "Recover initialize fail. message: %s" % e
 
     def start(self):
         Bfilter = UrlBloom(_capacity=CONFIG['BLOOM_CAPACITY'])

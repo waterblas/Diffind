@@ -39,8 +39,8 @@ class MongoHelper:
                     "$currentDate": {"updated": True}
                 }
             )
-        except:
-            print "insert error"
+        except Exception, e:
+            print "Insert error: %s" % e
 
     def insert_many(self, _dict):
         try:
