@@ -9,6 +9,7 @@ crawlserver:
 
 crawldb:
     image: mongo:latest
+    command: mongod --smallfiles
     volumes:
         - /data/diffind/db:/data/db
     ports:
