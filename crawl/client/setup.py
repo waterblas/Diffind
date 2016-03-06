@@ -12,7 +12,7 @@ setup(
     packages=['crawlstuff', 'commonstuff'],
     package_dir={
         'crawlstuff': '../crawlstuff', 
-        'commonstuff': '../../commonstuff'
+        'commonstuff': '../commonstuff'
     },
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='Useful crawl-related stuff.',
